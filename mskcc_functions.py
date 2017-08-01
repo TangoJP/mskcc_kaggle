@@ -1,5 +1,6 @@
 # Bunch of custom functions for analysing the MSKCC-data
 
+## For analysis for variants file
 def convert_mutation_type(data):
     '''
     Convert the 'Variant' Data into mutation_type in a new column, returns the new data with a new column
@@ -39,7 +40,7 @@ def convert_mutation_type(data):
             &(data['Variation'].str.contains('delins', case=False) == False)),
             'mutation_type']= 'Insertion'
     data.loc[((data['Variation'].str.contains('del', case=False))\
-            &(class_train['Variation'].str.contains('delins', case=False))),
+            &(data['Variation'].str.contains('delins', case=False))),
             'mutation_type']= 'Deletion-Insertion'
     data.loc[(data['Variation'].str.contains('dup', case=False)), 'mutation_type']= 'Duplication'
     data.loc[(data['Variation'].str.contains('trunc', case=False)), 'mutation_type']= 'Truncation'
@@ -65,3 +66,81 @@ def convert_mutation_type(data):
         data = data[['ID', 'Gene', 'Variation', 'mutation_type']]
 
     return data
+
+## For analysis of text file
+def process_text1(text):
+    '''
+    Process the original text. Tokenize into words first, and then remove stop words and numbers
+
+    INPUT:
+    ======
+    text : str
+        A string containing a writing to be analyzed
+
+    OUTPUT:
+    =======
+    words : list
+        A list of tokenized words
+
+    '''
+    # Tokenize the text
+    word_tokens = word_tokenize(text)
+    print('initial leng %d' % len(word_tokens))
+
+    # Remove some unwanted words (hyphen excluded), and numbers
+    remove_list = ['.', ',', '(', ')', '[', ']', '=', '+', '>', '<', ':', ';', '%']
+    word_tokens = [word for word in word_tokens if word not in remove_list]
+    word_tokens = [word for word in word_tokens if (word.isnumeric() == False)]
+
+    # Remove Stop words
+    stop_words = set(stopwords.words('english'))
+    words = [w for w in word_tokens if not w in stop_words]
+    print('After removing stop words %d' % len(words))
+
+    return words
+
+def get_gene_like_words(tokenized_text):
+    '''
+    Get Gene-name like words from the a list of tokenized words
+
+    INPUT:
+    ======
+    tokenized_text : list
+        A list of tokenized words
+
+    OUTPUT:
+    =======
+    gene_like_words : list
+        A list of gene name like words in the tokenized list
+    '''
+    gene_ish_pattern = r"[A-Z]{2,7}"
+    gene_like_words = [word for word in tokenized_text if re.match(gene_ish_pattern, word)]
+
+    return gene_like_words
+
+def create_mutation_words_table(tokenized_text):
+    '''
+    Create table for words to describe the mutation types from a list of
+    tokenized words
+
+    INPUT:
+    ======
+    text : list
+        a list of tokenized words
+
+    OUTPUT:
+    =======
+    mutation table : a list of sets
+    '''
+    # List of words for mutation types
+    mutation_patterns = ['truncation', 'deletion', 'promoter','amplification', 'epigenetic', 'frame', 'overexpression',
+                     'duplication', 'insertion','subtype', 'fusion', 'splice', 'wildtype']
+
+    appearances = []
+    for pattern in mutation_patterns:
+        appearance = len([word for word in tokenized_text if pattern in word.lower()])
+        appearances.append(appearance)
+
+    table = zip(mutation_patterns, appearances)
+
+    return dict(table)

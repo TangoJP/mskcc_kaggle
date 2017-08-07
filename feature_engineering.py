@@ -41,6 +41,12 @@ def replace_with_whitespace(text, hyphens='off'):
     text_white = text.encode().decode()  # copy a string?!
     text_white = text_white.replace('"', ' ')
     text_white = text_white.replace('.', ' ')
+    text_white = text_white.replace(',', ' ')
+    text_white = text_white.replace(':', ' ')
+    text_white = text_white.replace(';', ' ')
+    text_white = text_white.replace('@', ' ')
+    text_white = text_white.replace('<', ' ')
+    text_white = text_white.replace('>', ' ')
     text_white = text_white.replace('/', ' ')
     text_white = text_white.replace('\'', ' ')
     text_white = text_white.replace('_', ' ')
@@ -56,7 +62,7 @@ def replace_with_whitespace(text, hyphens='off'):
     text_white = text_white.replace(']', ' ')
     text_white = text_white.replace('{', ' ')
     text_white = text_white.replace('}', ' ')
-    if hyphens='on':
+    if hyphens == 'on':
         text_white = text_white.replace('-', ' ')
 
     return text_white
@@ -249,9 +255,9 @@ def get_gene_like_words(tokens_white, commoners=commoners):
 
     gene_like_pattern1 = r"^[A-Z]{2,7}-?[0-9]{0,4}$"    # e.g. NUP100
     gene_like_pattern2 = r"^p[0-9]{1,3}$"               # e.g p53
-    gene_like_words = [word for word in tokens_white \
+    gene_like_words = [word.lower() for word in tokens_white \
                        if re.match(gene_like_pattern1, word)]
-    gene_like_words += [word for word in tokens_white \
+    gene_like_words += [word.lower() for word in tokens_white \
                        if re.match(gene_like_pattern2, word)]
 
     return gene_like_words
@@ -282,7 +288,7 @@ def get_protein_words(tokens_white, commoners=commoners):
     enzyme_words = [re.sub(r's$', '', word) for word in enzyme_words]
 
     # Get PTM words
-    ptm_pattern = = r"^glyco|^phospho|^ubiquityl|^ubiquitinat|\
+    ptm_pattern = r"^glyco|^phospho|^ubiquityl|^ubiquitinat|\
                       ^acetyl|^methyl|^deamin|^oxydat"
     ptm_words = [word for word in tokens_white \
                  if re.search(ptm_pattern, word) \

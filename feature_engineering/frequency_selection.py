@@ -361,3 +361,130 @@ def RFC_NClassExclusiveWords(main_docs, freq_docs, classes,
     print(' - Log Loss: %.3f' % lloss)
 
     return [accuracy, lloss]
+
+def RFC_NClassWordsPlus(main_docs, freq_docs, classes, exclusive_class=1,
+        n_class=1, doc_type='fraction_of_docs', extract_mode='relative',
+        min_difference=1.5, min_frequency=0.35, min_excl_frequency=0.15,
+        vector_type='count', test_size=0.15, random_state=None, verbose=True,
+        rfc=RandomForestClassifier(n_estimators=100, max_depth=50)):
+    '''
+    This method utilized getNClassWords function to extract words given the
+    input frequency and difference parameters. Then convert the main_docs into
+    a vector space of given type (count or tfidf), and use it as a feature
+    matrix to run classification by Random Forest.
+    '''
+
+    # Words to create features
+    if verbose:
+        print('Extracting words...')
+    nclass_words1 = getNClassWords(freq_docs, doc_type=doc_type,
+                            mode=extract_mode, min_frequency=min_frequency,
+                            min_difference=min_difference, print_result=False)
+    nclass_words2 = getNClassExclusiveWords(freq_docs,
+                                    min_frequency=min_excl_frequency,
+                                    print_result=False)
+    if ((n_class > 0) and (exclusive_class > 0)):
+        select_words1 = selectNClassWords(nclass_words1, n=n_class)
+        select_words2 = selectNClassWords(nclass_words2, n=exclusive_class)
+        select_words = select_words1 + select_words2
+        if ((len(select_words) == 0) or (len(select_words) == 0)):
+            print('No words extracted in one of both of extractions. \
+                   Please select less stringent condition.')
+            return
+    else:
+        print('ERROR: Invalid n_class and/or exclusive_class')
+        return
+
+    if verbose:
+        print('%d words extracted...' % len(select_words))
+
+    # Vectroize
+    if verbose:
+        print('Vectorizating texts...')
+    vec_result = myVectorizer(main_docs, select_words, type='count')
+    X = vec_result['matrix'].astype(float)
+
+    # Check for the number of empty entries
+    # ***This is very important because many text entries do not cover many
+    # of the words in the select_words list. Obviously, such entries/rows
+    # cannot be classifier properly
+    unaccounted_indices = list(np.where(~X.any(axis=1))[0])
+    print('%d of %d entries not covered by the extracted words' \
+           % (len(unaccounted_indices), X.shape[0]))
+
+    # Run RFC on the data
+    if verbose:
+        print('Training the classifier...')
+
+    y = classes
+    X_train, X_test, y_train, y_test = \
+        train_test_split(X, y, test_size=test_size, random_state=random_state)
+    rfc.fit(X_train, y_train)
+
+    if verbose:
+        print('Making predictions...')
+    accuracy = accuracy_score(y_test, rfc.predict(X_test))
+    lloss = log_loss(y_test,
+                     rfc.predict_proba(X_test),
+                     labels=list(range(1, 10)))
+
+    if verbose:
+        print('===== Prediction Result =====')
+        print(' - Accuracyl: %.3f' % accuracy)
+        print(' - Log Loss: %.3f' % lloss)
+
+    return {'classifier': rfc, 'accuracy': accuracy, 'log_loss': lloss,
+            'feature_ids': vec_result['id'], 'features':vec_result['corpus'],
+            'feature_matrix': X}
+
+def RFC_CustomWords(main_docs, freq_docs, classes, select_words,
+        vector_type='count', test_size=0.15, random_state=None, verbose=True,
+        rfc=RandomForestClassifier(n_estimators=100, max_depth=15)):
+    '''
+    This method utilized getNClassWords function to extract words given the
+    input frequency and difference parameters. Then convert the main_docs into
+    a vector space of given type (count or tfidf), and use it as a feature
+    matrix to run classification by Random Forest.
+    '''
+
+    if verbose:
+        print('%d words selected...' % len(select_words))
+
+    # Vectroize
+    if verbose:
+        print('Vectorizating texts...')
+    vec_result = myVectorizer(main_docs, select_words, type='count')
+    X = vec_result['matrix'].astype(float)
+
+    # Check for the number of empty entries
+    # ***This is very important because many text entries do not cover many
+    # of the words in the select_words list. Obviously, such entries/rows
+    # cannot be classifier properly
+    unaccounted_indices = list(np.where(~X.any(axis=1))[0])
+    print('%d of %d entries not covered by the extracted words' \
+           % (len(unaccounted_indices), X.shape[0]))
+
+    # Run RFC on the data
+    if verbose:
+        print('Training the classifier...')
+
+    y = classes
+    X_train, X_test, y_train, y_test = \
+        train_test_split(X, y, test_size=test_size, random_state=random_state)
+    rfc.fit(X_train, y_train)
+
+    if verbose:
+        print('Making predictions...')
+    accuracy = accuracy_score(y_test, rfc.predict(X_test))
+    lloss = log_loss(y_test,
+                     rfc.predict_proba(X_test),
+                     labels=list(range(1, 10)))
+
+    if verbose:
+        print('===== Prediction Result =====')
+        print(' - Accuracyl: %.3f' % accuracy)
+        print(' - Log Loss: %.3f' % lloss)
+
+    return {'classifier': rfc, 'accuracy': accuracy, 'log_loss': lloss,
+            'feature_ids': vec_result['id'], 'features':vec_result['corpus'],
+            'feature_matrix': X}

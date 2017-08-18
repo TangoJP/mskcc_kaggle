@@ -8,7 +8,8 @@ from nltk.corpus import stopwords
 
 def process_text1(text, print_on=False):
     '''
-    Process the original text. Tokenize into words first, and then remove stop words and numbers
+    Process the original text. Tokenize into words first,
+    and then remove stop words and numbers
 
     INPUT:
     ======
@@ -25,7 +26,7 @@ def process_text1(text, print_on=False):
     word_tokens = word_tokenize(text)
 
     # Remove some unwanted words (hyphen excluded), and numbers
-    remove_list = ['.', ',', '(', ')', '[', ']', '=', '+', '>', '<', ':', ';', '%']
+    remove_list = ['.',',','(',')','[',']','=','+','>','<',':',';','%']
     word_tokens = [word for word in word_tokens if word not in remove_list]
     word_tokens = [word for word in word_tokens if (word.isnumeric() == False)]
 
@@ -82,3 +83,15 @@ def replace_with_whitespace(text, hyphens='off'):
         text_white = text_white.replace('-', ' ')
 
     return text_white
+
+def llwords2lstrs(list_of_listsOfWords):
+    '''
+    Convert a list of lists of words into a lis of strings.
+
+    '''
+    list_of_strings = []
+    for j, doc in enumerate(list_of_listsOfWords):
+        text = ' '.join(doc)
+        list_of_strings.append(text)
+
+    return list_of_strings

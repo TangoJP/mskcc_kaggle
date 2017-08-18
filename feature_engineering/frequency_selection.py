@@ -5,13 +5,23 @@ import pandas as pd
 from nltk import PorterStemmer
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from gensim import corpora, matutils, models, similarities
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, log_loss
 
-one_class_remove_list = ['bunkyo', 'commonest', 'commonplac', 'concret', 'consol',
-                         'conspicu', 'credenc', 'damage—unlik', 'drew', 'enumer', 'logo',
-                         'graduat','ibaraki', 'joshi', 'kaneda', 'kurumizaka', 'lesson',
-                         'matsui', 'minami', 'minato', 'montreal', 'newyork', 'ontario',
-                         'shirokanedai', 'sinai', 'taipei', 'wake', 'wise', 'yokohama']
+
+one_class_remove_list = ['bunkyo', 'commonest', 'commonplac', 'concret',
+                         'consol', 'conspicu', 'credenc', 'damage—unlik',
+                         'drew', 'enumer', 'logo', 'graduat','ibaraki',
+                         'joshi', 'kaneda', 'kurumizaka', 'lesson', 'matsui',
+                         'minami', 'minato', 'montreal', 'newyork', 'ontario',
+                         'shirokanedai', 'sinai', 'taipei', 'wake', 'wise',
+                         'yokohama']
+
+ncw_labels = ['one_class_words', 'two_class_words', 'three_class_words',
+              'four_class_words', 'five_class_words', 'six_class_words',
+              'seven_class_words', 'eight_class_words','other_words']
 
 def getRelativeDifference(a, b, freq_threshold=0.05):
     if ((b != 0) and (a >= freq_threshold)):
@@ -40,14 +50,15 @@ def getNClassWords(docs, doc_type='fraction_of_docs', mode='relative',
                     min_frequency=0.3, min_difference=1.5, print_result=True):
     '''
     This function looks at each word in each doc in the 'docs' and creates
-    a list containing frequency of appearance ('apps') for each class. The list is
-    re-order in descending order, and the fold difference between the adjacent pair
-    of frequencies are compared. If the fold difference is above a certain threshold
-    ('fold_threshold), the word is classified into a designated class of words.
-    When a word is classified as n-class word, it means that the freqs of app of the
-    word in n (number of) classes are X fold (fold_threshold) higher than those of
-    other classes. freq_threshold is a cutoff freq of app to decide whether to
-    include the word or not in the list.
+    a list containing frequency of appearance ('apps') for each class. The
+    list is re-order in descending order, and the fold difference between the
+    adjacent pair of frequencies are compared. If the fold difference is above
+    a certain threshold ('fold_threshold), the word is classified into a
+    designated class of words. When a word is classified as n-class word,
+    it means that the freqs of app of the word in n (number of) classes are
+    X fold (fold_threshold) higher than those of other classes. freq_threshold
+    is a cutoff freq of app to decide whether to include the word or not
+    in the list.
 
     - Number of classes are assumed to be 9.
     - Use get_FoldDifference function to calculate fold difference
@@ -81,7 +92,8 @@ def getNClassWords(docs, doc_type='fraction_of_docs', mode='relative',
         #else:
             #print('Doc Type: Per-doc Frequency')
     else:
-        if not((doc_type == 'fraction_of_docs') or (doc_type == 'per_doc_frequency')):
+        if not((doc_type == 'fraction_of_docs') \
+           or (doc_type == 'per_doc_frequency')):
             print('ERROR: Invalid Doc Type')
             return
 
@@ -98,9 +110,6 @@ def getNClassWords(docs, doc_type='fraction_of_docs', mode='relative',
             print('ERROR: Absolute difference too high. Lower min_difference')
             return
 
-    ncw_labels = ['one_class_words', 'two_class_words', 'three_class_words',
-                  'four_class_words', 'five_class_words', 'six_class_words',
-                  'seven_class_words', 'eight_class_words','other_words']
 
     # Create a new dictionary to contain each n-class of words in list formats
     n_class_words = {}
@@ -111,44 +120,46 @@ def getNClassWords(docs, doc_type='fraction_of_docs', mode='relative',
     for j, word in enumerate(docs.index):
         apps = np.array(docs.loc[word])
         apps[::-1].sort()
-        if decideOnDifference(apps[0], apps[1],
-                              freq_threshold=min_freq, min_difference=min_d, mode=mode):
+        if decideOnDifference(apps[0], apps[1], freq_threshold=min_freq,
+                                min_difference=min_d, mode=mode):
             n_class_words[ncw_labels[0]].append(word)
-        elif decideOnDifference(apps[1], apps[2],
-                              freq_threshold=min_freq, min_difference=min_d, mode=mode):
+        elif decideOnDifference(apps[1], apps[2], freq_threshold=min_freq,
+                                min_difference=min_d, mode=mode):
             n_class_words[ncw_labels[1]].append(word)
-        elif decideOnDifference(apps[2], apps[3],
-                              freq_threshold=min_freq, min_difference=min_d, mode=mode):
+        elif decideOnDifference(apps[2], apps[3], freq_threshold=min_freq,
+                                min_difference=min_d, mode=mode):
             n_class_words[ncw_labels[2]].append(word)
-        elif decideOnDifference(apps[3], apps[4],
-                              freq_threshold=min_freq, min_difference=min_d, mode=mode):
+        elif decideOnDifference(apps[3], apps[4], freq_threshold=min_freq,
+                                min_difference=min_d, mode=mode):
             n_class_words[ncw_labels[3]].append(word)
-        elif decideOnDifference(apps[4], apps[5],
-                              freq_threshold=min_freq, min_difference=min_d, mode=mode):
+        elif decideOnDifference(apps[4], apps[5], freq_threshold=min_freq,
+                                min_difference=min_d, mode=mode):
             n_class_words[ncw_labels[4]].append(word)
-        elif decideOnDifference(apps[5], apps[6],
-                              freq_threshold=min_freq, min_difference=min_d, mode=mode):
+        elif decideOnDifference(apps[5], apps[6], freq_threshold=min_freq,
+                                min_difference=min_d, mode=mode):
             n_class_words[ncw_labels[5]].append(word)
-        elif decideOnDifference(apps[6], apps[7],
-                              freq_threshold=min_freq, min_difference=min_d, mode=mode):
+        elif decideOnDifference(apps[6], apps[7], freq_threshold=min_freq,
+                                min_difference=min_d, mode=mode):
             n_class_words[ncw_labels[6]].append(word)
-        elif decideOnDifference(apps[7], apps[8],
-                              freq_threshold=min_freq, min_difference=min_d, mode=mode):
+        elif decideOnDifference(apps[7], apps[8], freq_threshold=min_freq,
+                                min_difference=min_d, mode=mode):
             n_class_words[ncw_labels[7]].append(word)
         else:
             n_class_words[ncw_labels[8]].append(word)
 
     # Remove a list of words from one-class words
-    n_class_words['one_class_words'] = [word for word in n_class_words['one_class_words'] if len(word) > 2]
+    n_class_words['one_class_words'] = \
+        [word for word in n_class_words['one_class_words'] if len(word) > 2]
 
     if print_result:
-        print('======== n-class words extractions by %s differecne ========' % mode)
+        print('====== n-class words extractions by %s differecne ======' % mode)
         print('Input Type: %s' % doc_type)
         print('Minimum Difference = %.2f' % min_d)
         print('Minimum Frequency = %.2f' % min_freq)
         total = 0
         for i in range(9):
-            print('# of words in %s: %d' % (ncw_labels[i], len(n_class_words[ncw_labels[i]])))
+            print('# of words in %s: %d' % (ncw_labels[i],
+                                            len(n_class_words[ncw_labels[i]])))
             total += len(n_class_words[ncw_labels[i]])
         print('Total # of words: %d' % total)
 
@@ -182,10 +193,6 @@ def getNClassExclusiveWords(docs, min_frequency=0.2, print_result=True):
     '''
     min_freq = min_frequency
 
-    ncw_labels = ['one_class_words', 'two_class_words', 'three_class_words',
-                  'four_class_words', 'five_class_words', 'six_class_words',
-                  'seven_class_words', 'eight_class_words','other_words']
-
     # Create a new dictionary to contain each n-class of words in list formats
     n_class_words = {}
     for i in range(9):
@@ -201,20 +208,156 @@ def getNClassExclusiveWords(docs, min_frequency=0.2, print_result=True):
             n_class_words[ncw_labels[8]].append(word)
 
     # Remove a list of words from one-class words
-    one_class_remove_list = ['bunkyo', 'commonest', 'commonplac', 'concret', 'consol',
-                             'conspicu', 'credenc', 'damage—unlik', 'drew', 'enumer', 'logo',
-                             'graduat','ibaraki', 'joshi', 'kaneda', 'kurumizaka', 'lesson',
-                             'matsui', 'minami', 'minato', 'montreal', 'newyork', 'ontario',
-                             'shirokanedai', 'sinai', 'taipei', 'wake', 'wise', 'yokohama']
-    n_class_words['one_class_words'] = [word for word in n_class_words['one_class_words'] if len(word) > 2]
+    n_class_words['one_class_words'] = \
+            [word for word in n_class_words['one_class_words'] if len(word) > 2]
 
     if print_result:
-        print('======== n-class words extractions by exclusive appearances ========')
+        print('===== n-class words extractions by exclusive appearances =====')
         print('Minimum Frequency = %f' % min_freq)
         total = 0
         for i in range(9):
-            print('# of words in %s: %d' % (ncw_labels[i], len(n_class_words[ncw_labels[i]])))
+            print('# of words in %s: %d' % (ncw_labels[i],
+                                            len(n_class_words[ncw_labels[i]])))
             total += len(n_class_words[ncw_labels[i]])
         print('Total # of words: %d' % total)
 
     return n_class_words
+
+def selectNClassWords(n_class_words, n=1):
+    '''
+    Takes an output from getNClassWords or getNClassExclusiveWords
+    and returns combined n_class_words for a select number of classes of words.
+    *Here, 'class' is not directly referring to the class labels in the data.
+     NClassWords funcions return list of words that appear in certain number of
+     classes, and that certain number is 'N' in those functions.
+    **ncw_labels are defined at the top of this file. So import the entire
+      module whne using this function.
+
+    INPUT
+    ======
+    n_class_words : dictionary
+        key contains the class of words, value the list of words in that
+        word class
+    n : int
+        number of word classes to be included
+
+    OUTPUT
+    ======
+    select_words : list
+        A list of words
+    '''
+
+    select_words = []
+    for i in range(n):
+        select_words += n_class_words[ncw_labels[i]]
+    if len(select_words) == 0:
+        print('No words extraced.')
+        return
+    else:
+        return select_words
+
+def myVectorizer(docs, word_list, type='count'):
+    my_dict = corpora.Dictionary([word_list])
+    word_IDs = my_dict.token2id
+    corpus = [my_dict.doc2bow(doc) for doc in docs]
+
+    if type == 'tfidf':
+        tfidf = models.TfidfModel(corpus)
+        corpus = tfidf[corpus]
+    if not ((type == 'count') or (type == 'tfidf')):
+        print('ERROR: Invalid vector type.')
+        return
+
+    mat = matutils.corpus2dense(corpus,
+                                num_terms=len(word_list),
+                                num_docs=len(corpus)).T
+    return {'id': word_IDs, 'corpus': corpus, 'matrix': mat}
+
+def RFC_NClassWords(main_docs, freq_docs, classes,
+                n_class=1, doc_type='fraction_of_docs', extract_mode='relative',
+                min_difference=1.5, min_frequency=0.35, vector_type='count',
+                test_size=0.15, random_state=None,
+                rfc=RandomForestClassifier(n_estimators=100, max_depth=50)):
+    '''
+    This method utilized getNClassWords function to extract words given the
+    input frequency and difference parameters. Then convert the main_docs into
+    a vector space of given type (count or tfidf), and use it as a feature
+    matrix to run classification by Random Forest.
+    '''
+
+    # Words to create features
+    print('Extracting words...')
+    nclass_words = getNClassWords(freq_docs, doc_type=doc_type,
+                            mode=extract_mode, min_frequency=min_frequency,
+                            min_difference=min_difference, print_result=False)
+
+    select_words = selectNClassWords(nclass_words, n=n_class)
+    print('%d words extracted...' % len(select_words))
+
+    # Vectroize
+    print('Vectorizating texts...')
+    vec_result = myVectorizer(main_docs, select_words, type='count')
+
+    # Run RFC on the data
+    print('Training the classifier...')
+    X = vec_result['matrix'].astype(float)
+    y = classes
+    X_train, X_test, y_train, y_test = \
+        train_test_split(X, y, test_size=test_size, random_state=random_state)
+    rfc.fit(X_train, y_train)
+
+    print('Making predictions...')
+    accuracy = accuracy_score(y_test, rfc.predict(X_test))
+    lloss = log_loss(y_test,
+                     rfc.predict_proba(X_test),
+                     labels=list(range(1, 10)))
+
+    print('===== Prediction Result =====')
+    print(' - Accuracyl: %.3f' % accuracy)
+    print(' - Log Loss: %.3f' % lloss)
+
+    return [accuracy, lloss]
+
+def RFC_NClassExclusiveWords(main_docs, freq_docs, classes,
+                n_class=1, min_frequency=0.35, vector_type='count',
+                test_size=0.15, random_state=None,
+                rfc=RandomForestClassifier(n_estimators=100, max_depth=50)):
+    '''
+    This method utilized getNClassWords function to extract words given the
+    input frequency and difference parameters. Then convert the main_docs into
+    a vector space of given type (count or tfidf), and use it as a feature
+    matrix to run classification by Random Forest.
+    '''
+
+    # Words to create features
+    print('Extracting words...')
+    nclass_words = getNClassExclusiveWords(freq_docs,
+                                    min_frequency=min_frequency,
+                                    print_result=False)
+
+    select_words = selectNClassWords(nclass_words, n=n_class)
+    print('%d words extracted...' % len(select_words))
+
+    # Vectroize
+    print('Vectorizating texts...')
+    vec_result = myVectorizer(main_docs, select_words, type='count')
+
+    # Run RFC on the data
+    print('Training the classifier...')
+    X = vec_result['matrix'].astype(float)
+    y = classes
+    X_train, X_test, y_train, y_test = \
+        train_test_split(X, y, test_size=test_size, random_state=random_state)
+    rfc.fit(X_train, y_train)
+
+    print('Making predictions...')
+    accuracy = accuracy_score(y_test, rfc.predict(X_test))
+    lloss = log_loss(y_test,
+                     rfc.predict_proba(X_test),
+                     labels=list(range(1, 10)))
+
+    print('===== Prediction Result =====')
+    print(' - Accuracyl: %.3f' % accuracy)
+    print(' - Log Loss: %.3f' % lloss)
+
+    return [accuracy, lloss]

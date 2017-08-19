@@ -252,7 +252,7 @@ def selectNClassWords(n_class_words, n=1):
         select_words += n_class_words[ncw_labels[i]]
     if len(select_words) == 0:
         print('No words extraced.')
-        return
+        return []
     else:
         return select_words
 
@@ -293,30 +293,32 @@ def RFC_NClassWords(main_docs, freq_docs, classes,
 
     select_words = selectNClassWords(nclass_words, n=n_class)
     print('%d words extracted...' % len(select_words))
+    if len(select_words) == 0:
+        return
+    else:
+        # Vectroize
+        print('Vectorizating texts...')
+        vec_result = myVectorizer(main_docs, select_words, type='count')
 
-    # Vectroize
-    print('Vectorizating texts...')
-    vec_result = myVectorizer(main_docs, select_words, type='count')
+        # Run RFC on the data
+        print('Training the classifier...')
+        X = vec_result['matrix'].astype(float)
+        y = classes
+        X_train, X_test, y_train, y_test = \
+            train_test_split(X, y, test_size=test_size, random_state=random_state)
+        rfc.fit(X_train, y_train)
 
-    # Run RFC on the data
-    print('Training the classifier...')
-    X = vec_result['matrix'].astype(float)
-    y = classes
-    X_train, X_test, y_train, y_test = \
-        train_test_split(X, y, test_size=test_size, random_state=random_state)
-    rfc.fit(X_train, y_train)
+        print('Making predictions...')
+        accuracy = accuracy_score(y_test, rfc.predict(X_test))
+        lloss = log_loss(y_test,
+                         rfc.predict_proba(X_test),
+                         labels=list(range(1, 10)))
 
-    print('Making predictions...')
-    accuracy = accuracy_score(y_test, rfc.predict(X_test))
-    lloss = log_loss(y_test,
-                     rfc.predict_proba(X_test),
-                     labels=list(range(1, 10)))
+        print('===== Prediction Result =====')
+        print(' - Accuracyl: %.3f' % accuracy)
+        print(' - Log Loss: %.3f' % lloss)
 
-    print('===== Prediction Result =====')
-    print(' - Accuracyl: %.3f' % accuracy)
-    print(' - Log Loss: %.3f' % lloss)
-
-    return [accuracy, lloss]
+        return [accuracy, lloss]
 
 def RFC_NClassExclusiveWords(main_docs, freq_docs, classes,
                 n_class=1, min_frequency=0.35, vector_type='count',
@@ -408,9 +410,10 @@ def RFC_NClassWordsPlus(main_docs, freq_docs, classes, exclusive_class=1,
     # ***This is very important because many text entries do not cover many
     # of the words in the select_words list. Obviously, such entries/rows
     # cannot be classifier properly
-    unaccounted_indices = list(np.where(~X.any(axis=1))[0])
-    print('%d of %d entries not covered by the extracted words' \
-           % (len(unaccounted_indices), X.shape[0]))
+    if verbose:
+        unaccounted_indices = list(np.where(~X.any(axis=1))[0])
+        print('%d of %d entries not covered by the extracted words' \
+               % (len(unaccounted_indices), X.shape[0]))
 
     # Run RFC on the data
     if verbose:

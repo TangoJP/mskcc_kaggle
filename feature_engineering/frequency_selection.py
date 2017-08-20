@@ -248,10 +248,11 @@ def selectNClassWords(n_class_words, n=1):
     '''
 
     select_words = []
-    for i in range(n):
-        select_words += n_class_words[ncw_labels[i]]
+    if n_class_words is not None:
+        for i in range(n):
+            select_words += n_class_words[ncw_labels[i]]
     if len(select_words) == 0:
-        print('No words extraced.')
+        #print('No words extraced.')
         return []
     else:
         return select_words
@@ -276,7 +277,7 @@ def myVectorizer(docs, word_list, type='count'):
 def RFC_NClassWords(main_docs, freq_docs, classes,
                 n_class=1, doc_type='fraction_of_docs', extract_mode='relative',
                 min_difference=1.5, min_frequency=0.35, vector_type='count',
-                test_size=0.15, random_state=None,
+                test_size=0.15, random_state=None, verbose=False,
                 rfc=RandomForestClassifier(n_estimators=100, max_depth=50)):
     '''
     This method utilized getNClassWords function to extract words given the
@@ -286,37 +287,43 @@ def RFC_NClassWords(main_docs, freq_docs, classes,
     '''
 
     # Words to create features
-    print('Extracting words...')
+    if verbose:
+        print('Extracting words...')
     nclass_words = getNClassWords(freq_docs, doc_type=doc_type,
                             mode=extract_mode, min_frequency=min_frequency,
                             min_difference=min_difference, print_result=False)
 
     select_words = selectNClassWords(nclass_words, n=n_class)
-    print('%d words extracted...' % len(select_words))
+    if verbose:
+        print('%d words extracted...' % len(select_words))
     if len(select_words) == 0:
         return
     else:
         # Vectroize
-        print('Vectorizating texts...')
+        if verbose:
+            print('Vectorizating texts...')
         vec_result = myVectorizer(main_docs, select_words, type='count')
 
         # Run RFC on the data
-        print('Training the classifier...')
+        if verbose:
+            print('Training the classifier...')
         X = vec_result['matrix'].astype(float)
         y = classes
         X_train, X_test, y_train, y_test = \
             train_test_split(X, y, test_size=test_size, random_state=random_state)
         rfc.fit(X_train, y_train)
 
-        print('Making predictions...')
+        if verbose:
+            print('Making predictions...')
         accuracy = accuracy_score(y_test, rfc.predict(X_test))
         lloss = log_loss(y_test,
                          rfc.predict_proba(X_test),
                          labels=list(range(1, 10)))
 
-        print('===== Prediction Result =====')
-        print(' - Accuracyl: %.3f' % accuracy)
-        print(' - Log Loss: %.3f' % lloss)
+        if verbose:
+            print('===== Prediction Result =====')
+            print(' - Accuracyl: %.3f' % accuracy)
+            print(' - Log Loss: %.3f' % lloss)
 
         return [accuracy, lloss]
 
